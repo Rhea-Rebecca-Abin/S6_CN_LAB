@@ -1,96 +1,79 @@
+// Server (FTP)
+#include <stdio.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
 
-#include <stdio.h> 
-#include <netdb.h> 
-#include <netinet/in.h> 
-#include <stdlib.h> 
-#include <string.h> 
-#include <sys/socket.h> 
-#include <sys/types.h> 
-#include <unistd.h> // read(), write(), close()
-#define MAX 80 
-#define PORT 8080 
-#define SA struct sockaddr 
+int main() {
+    FILE *fp;
+    int sd, newsd, ser, n, a, cli, pid, bd, port, clilen;
+    char name[100], fileread[100], fname[100], ch, file[100], rcv[100];
+    struct sockaddr_in servaddr, cliaddr;
 
-// Function designed for chat between client and server. 
-void func(int connfd) 
-{ 
-	char buff[MAX]; 
-	int n; 
-	// infinite loop for chat 
-	for (;;) { 
-		bzero(buff, MAX); 
+    // Prompt user to enter the port address
+    printf("Enter the port address: ");
+    scanf("%d", &port);
 
-		// read the message from client and copy it in buffer 
-		read(connfd, buff, sizeof(buff)); 
-		// print buffer which contains the client contents 
-		printf("From client: %s\t To client : ", buff); 
-		bzero(buff, MAX); 
-		n = 0; 
-		// copy server message in the buffer 
-		while ((buff[n++] = getchar()) != '\n') 
-			; 
+    // Create socket
+    sd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sd < 0)
+        printf("Cant create!\n");
+    else
+        printf("Socket is created.\n");
 
-		// and send that buffer to client 
-		write(connfd, buff, sizeof(buff)); 
+    // Initialize server address structure
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    servaddr.sin_port = htons(port);
 
-		// if msg contains "Exit" then server exit and chat ended. 
-		if (strncmp("exit", buff, 4) == 0) { 
-			printf("Server Exit...\n"); 
-			break; 
-		} 
-	} 
-} 
+    a = sizeof(servaddr);
 
-// Driver function 
-int main() 
-{ 
-	int sockfd, connfd, len; 
-	struct sockaddr_in servaddr, cli; 
+    // Bind socket
+    bd = bind(sd, (struct sockaddr *)&servaddr, a);
+    if (bd < 0)
+        printf("Cant bind!\n");
+    else
+        printf("Binded.\n");
 
-	// socket create and verification 
-	sockfd = socket(AF_INET, SOCK_STREAM, 0); 
-	if (sockfd == -1) { 
-		printf("socket creation failed...\n"); 
-		exit(0); 
-	} 
-	else
-		printf("Socket successfully created..\n"); 
-	bzero(&servaddr, sizeof(servaddr)); 
+    // Listen for connections
+    listen(sd, 5);
 
-	// assign IP, PORT 
-	servaddr.sin_family = AF_INET; 
-	servaddr.sin_addr.s_addr = htonl(INADDR_ANY); 
-	servaddr.sin_port = htons(PORT); 
+    clilen = sizeof(cliaddr);
 
-	// Binding newly created socket to given IP and verification 
-	if ((bind(sockfd, (SA*)&servaddr, sizeof(servaddr))) != 0) { 
-		printf("socket bind failed...\n"); 
-		exit(0); 
-	} 
-	else
-		printf("Socket successfully binded..\n"); 
+    // Accept connection
+    newsd = accept(sd, (struct sockaddr *)&cliaddr, &clilen);
+    if (newsd < 0) {
+        printf("Can't accept!\n");
+    } else
+        printf("Accepted.\n");
 
-	// Now server is ready to listen and verification 
-	if ((listen(sockfd, 5)) != 0) { 
-		printf("Listen failed...\n"); 
-		exit(0); 
-	} 
-	else
-		printf("Server listening..\n"); 
-	len = sizeof(cli); 
+    // Receive file name from client
+    n = recv(newsd, rcv, 100, 0);
+    rcv[n] = '\0';
 
-	// Accept the data packet from client and verification 
-	connfd = accept(sockfd, (SA*)&cli, &len); 
-	if (connfd < 0) { 
-		printf("server accept failed...\n"); 
-		exit(0); 
-	} 
-	else
-		printf("server accept the client...\n"); 
+    // Open requested file
+    fp = fopen(rcv, "r");
+    if (fp == NULL) {
+        // Send error message if file does not exist
+        send(newsd, "error!", 5, 0);
+        close(newsd);
+    } else {
+        // Send file contents to client
+        while (fgets(fileread, sizeof(fileread), fp)) {
+            if (send(newsd, fileread, sizeof(fileread), 0) < 0) {
+                printf("Cannot send file contents!\n");
+            }
+            sleep(1); // Introducing delay between sends
+        }
 
-	// Function for chatting between client and server 
-	func(connfd); 
-
-	// After chatting close the socket 
-	close(sockfd); 
+        // Send completion message when file transfer is done
+        if (!fgets(fileread, sizeof(fileread), fp)) {
+            // When file pointer reaches end of file, file transfer “completed” message is sent to accepted client connection using newsd, socket file descriptor.
+            send(newsd, "completed", 999999999, 0);
+        }
+        return (0);
+    }
 }
+
