@@ -129,7 +129,7 @@ s6d2@user-HP-280-G3-MT:~/gitgub-lab/Networking-Lab-S6/SMTP$
 
 -------------------------
  gcc server.c -o server
- ~/NETWORK LAB/CEC_chengannur_smtp$ ./server 6500
+ ./server 6500
 mesg:SMTP REQUEST FROM CLIENT
 
 C:HELLO name_of_client_mail_server
